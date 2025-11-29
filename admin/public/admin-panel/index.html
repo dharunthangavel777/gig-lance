@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GigLance Admin</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+        .sidebar.collapsed {
+            width: 5rem;
+        }
+        .sidebar.collapsed .menu-text {
+            display: none;
+        }
+        .sidebar.collapsed .sidebar-header h1 {
+            display: none;
+        }
+        .main-content.expanded {
+            margin-left: 5rem;
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .menu-item.active {
+            background-color: rgba(59, 130, 246, 0.3);
+            border-left: 3px solid #3B82F6;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .stat-card {
+            transition: all 0.2s ease;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3B82F6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Modal styles */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Login Screen (initially hidden, shown when not authenticated) -->
+    <div id="loginScreen" class="hidden fixed inset-0 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-briefcase text-white text-2xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">GigLance Admin</h1>
+                <p class="text-gray-500 mt-2">Sign in to access the admin dashboard</p>
+            </div>
+            
+            <button id="googleSignInBtn" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-700 font-medium hover:bg-gray-50 hover:shadow-md transition-all mb-3">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="w-5 h-5">
+                Sign in with Google
+            </button>
+            
+            <!-- Added Demo Mode button for testing without Firebase auth -->
+            <div class="relative my-4">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-200"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-white text-gray-500">or</span>
+                </div>
+            </div>
+            
+            <button id="demoModeBtn" class="w-full flex items-center justify-center gap-3 bg-gray-800 rounded-lg px-4 py-3 text-white font-medium hover:bg-gray-700 transition-all">
+                <i class="fas fa-play-circle"></i>
+                Enter Demo Mode
+            </button>
+            <p class="text-xs text-gray-400 text-center mt-2">Demo mode uses sample data for testing</p>
+            
+            <!-- Improved error display with Firebase domain instructions -->
+            <div id="loginError" class="hidden mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p id="loginErrorText" class="text-red-600 text-sm"></p>
+                <div id="domainInstructions" class="hidden mt-3 text-xs text-gray-600">
+                    <p class="font-medium mb-1">To fix this:</p>
+                    <ol class="list-decimal list-inside space-y-1">
+                        <li>Go to <a href="https://console.firebase.google.com" target="_blank" class="text-blue-600 hover:underline">Firebase Console</a></li>
+                        <li>Select your project (gig-lance)</li>
+                        <li>Go to Authentication &gt; Settings &gt; Authorized domains</li>
+                        <li>Add this domain to the list</li>
+                    </ol>
+                    <p class="mt-2 p-2 bg-gray-100 rounded font-mono text-xs break-all" id="currentDomain"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Admin Panel -->
+    <div id="adminPanel" class="flex h-screen">
+        <!-- Sidebar -->
+        <div id="sidebar" class="sidebar bg-gray-800 text-white w-64 flex-shrink-0 h-full fixed z-20">
+            <div class="sidebar-header p-4 border-b border-gray-700 flex items-center">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-briefcase text-white"></i>
+                </div>
+                <h1 class="text-xl font-bold ml-3">GigLance Admin</h1>
+            </div>
+            <nav class="mt-4 flex-1">
+                <a href="#" data-view="dashboardView" class="menu-item active flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700">
+                    <i class="fas fa-tachometer-alt w-6 text-center"></i>
+                    <span class="ml-3 menu-text">Dashboard</span>
+                </a>
+                <a href="#" data-view="usersView" class="menu-item flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700">
+                    <i class="fas fa-users w-6 text-center"></i>
+                    <span class="ml-3 menu-text">Users</span>
+                </a>
+                <a href="#" data-view="jobsView" class="menu-item flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700">
+                    <i class="fas fa-briefcase w-6 text-center"></i>
+                    <span class="ml-3 menu-text">Jobs</span>
+                </a>
+                <a href="#" data-view="clientVerificationView" class="menu-item flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700">
+                    <i class="fas fa-user-check w-6 text-center"></i>
+                    <span class="ml-3 menu-text">Client Verification</span>
+                    <span id="pendingClientBadge" class="hidden ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                </a>
+                <a href="#" data-view="jobApprovalView" class="menu-item flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700">
+                    <i class="fas fa-clipboard-check w-6 text-center"></i>
+                    <span class="ml-3 menu-text">Job Approvals</span>
+                    <span id="pendingJobBadge" class="hidden ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                </a>
+                <a href="#" data-view="badgeRequestView" class="menu-item flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700">
+                    <i class="fas fa-award w-6 text-center"></i>
+                    <span class="ml-3 menu-text">Badge Requests</span>
+                    <span id="pendingBadgeBadge" class="hidden ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                </a>
+                <a href="#" data-view="settingsView" class="menu-item flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700">
+                    <i class="fas fa-cog w-6 text-center"></i>
+                    <span class="ml-3 menu-text">Settings</span>
+                </a>
+            </nav>
+            <div class="absolute bottom-0 w-full p-4 border-t border-gray-700">
+                <div class="flex items-center">
+                    <img id="userPhoto" src="https://ui-avatars.com/api/?name=Admin&background=3B82F6&color=fff" alt="User" class="w-10 h-10 rounded-full">
+                    <div class="ml-3 menu-text">
+                        <p id="userName" class="text-sm font-medium text-white">Admin</p>
+                        <button id="signOutBtn" class="text-xs text-gray-400 hover:text-white flex items-center gap-1">
+                            <i class="fas fa-sign-out-alt"></i> Sign Out
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="mainContent" class="main-content flex-1 ml-64 overflow-y-auto">
+            <!-- Header -->
+            <header class="bg-white shadow-sm px-6 py-4 sticky top-0 z-10">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <button id="sidebarToggle" class="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                        <div>
+                            <h2 id="pageTitle" class="text-xl font-bold text-gray-800">Dashboard</h2>
+                            <p class="text-sm text-gray-500">Welcome back, <span id="greetingName">Admin</span>!</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button class="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">
+                            <i class="fas fa-bell text-lg"></i>
+                            <span id="notificationBadge" class="hidden absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">0</span>
+                        </button>
+                        <div class="w-px h-8 bg-gray-200"></div>
+                        <span class="text-sm text-gray-500" id="currentDateTime"></span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-6">
+                <!-- Dashboard View -->
+                <div id="dashboardView">
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <div class="stat-card bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500">Total Users</p>
+                                    <p id="totalUsers" class="text-3xl font-bold text-gray-800 mt-1">0</p>
+                                    <p class="text-xs text-green-600 mt-1"><i class="fas fa-arrow-up"></i> Active platform users</p>
+                                </div>
+                                <div class="p-4 rounded-xl bg-blue-50">
+                                    <i class="fas fa-users text-2xl text-blue-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500">Active Jobs</p>
+                                    <p id="activeJobs" class="text-3xl font-bold text-gray-800 mt-1">0</p>
+                                    <p class="text-xs text-green-600 mt-1"><i class="fas fa-briefcase"></i> Open positions</p>
+                                </div>
+                                <div class="p-4 rounded-xl bg-green-50">
+                                    <i class="fas fa-briefcase text-2xl text-green-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500">Pending Requests</p>
+                                    <p id="pendingRequests" class="text-3xl font-bold text-gray-800 mt-1">0</p>
+                                    <p class="text-xs text-amber-600 mt-1"><i class="fas fa-clock"></i> Awaiting review</p>
+                                </div>
+                                <div class="p-4 rounded-xl bg-amber-50">
+                                    <i class="fas fa-user-clock text-2xl text-amber-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500">Featured Badges</p>
+                                    <p id="featuredBadges" class="text-3xl font-bold text-gray-800 mt-1">0</p>
+                                    <p class="text-xs text-purple-600 mt-1"><i class="fas fa-star"></i> Awarded badges</p>
+                                </div>
+                                <div class="p-4 rounded-xl bg-purple-50">
+                                    <i class="fas fa-award text-2xl text-purple-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Stats Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-xl text-white">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-blue-100 text-sm">Client Verifications</p>
+                                    <p id="pendingClientRequests" class="text-3xl font-bold mt-1">0</p>
+                                    <p class="text-blue-200 text-xs mt-1">Pending approval</p>
+                                </div>
+                                <i class="fas fa-user-check text-4xl text-blue-300 opacity-50"></i>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-r from-emerald-600 to-emerald-700 p-6 rounded-xl text-white">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-emerald-100 text-sm">Job Approvals</p>
+                                    <p id="pendingJobApprovals" class="text-3xl font-bold mt-1">0</p>
+                                    <p class="text-emerald-200 text-xs mt-1">Awaiting review</p>
+                                </div>
+                                <i class="fas fa-clipboard-list text-4xl text-emerald-300 opacity-50"></i>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-r from-amber-500 to-amber-600 p-6 rounded-xl text-white">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-amber-100 text-sm">Badge Requests</p>
+                                    <p id="pendingBadgeRequests" class="text-3xl font-bold mt-1">0</p>
+                                    <p class="text-amber-200 text-xs mt-1">To be processed</p>
+                                </div>
+                                <i class="fas fa-medal text-4xl text-amber-300 opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity & Quick Actions -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Recent Activity -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">Recent Activity</h3>
+                                <a href="#" data-view="clientVerificationView" class="text-sm text-blue-600 hover:underline">View All</a>
+                            </div>
+                            <div id="recentActivity" class="space-y-4">
+                                <div class="flex items-center justify-center py-8">
+                                    <div class="spinner"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <button onclick="showView('clientVerificationView')" class="flex flex-col items-center justify-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
+                                    <i class="fas fa-user-check text-2xl text-blue-600 mb-2"></i>
+                                    <span class="text-sm font-medium text-gray-700">Verify Clients</span>
+                                </button>
+                                <button onclick="showView('jobApprovalView')" class="flex flex-col items-center justify-center p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+                                    <i class="fas fa-clipboard-check text-2xl text-green-600 mb-2"></i>
+                                    <span class="text-sm font-medium text-gray-700">Approve Jobs</span>
+                                </button>
+                                <button onclick="showView('badgeRequestView')" class="flex flex-col items-center justify-center p-4 bg-amber-50 rounded-xl hover:bg-amber-100 transition-colors">
+                                    <i class="fas fa-award text-2xl text-amber-600 mb-2"></i>
+                                    <span class="text-sm font-medium text-gray-700">Award Badges</span>
+                                </button>
+                                <button onclick="showView('usersView')" class="flex flex-col items-center justify-center p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+                                    <i class="fas fa-users-cog text-2xl text-purple-600 mb-2"></i>
+                                    <span class="text-sm font-medium text-gray-700">Manage Users</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Users View -->
+                <div id="usersView" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div class="p-6 border-b border-gray-100">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-lg font-semibold text-gray-800">Users Management</h3>
+                                <div class="flex items-center gap-4">
+                                    <div class="relative">
+                                        <input type="text" id="userSearchInput" placeholder="Search users..." class="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    </div>
+                                    <select id="userRoleFilter" class="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="all">All Roles</option>
+                                        <option value="freelancer">Freelancers</option>
+                                        <option value="client">Clients</option>
+                                        <option value="admin">Admins</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="usersList" class="p-6">
+                            <div class="flex items-center justify-center py-8">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Jobs View -->
+                <div id="jobsView" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div class="p-6 border-b border-gray-100">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-lg font-semibold text-gray-800">Jobs Management</h3>
+                                <div class="flex items-center gap-4">
+                                    <select id="jobStatusFilter" class="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="all">All Jobs</option>
+                                        <option value="active">Active</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="jobsList" class="p-6">
+                            <div class="flex items-center justify-center py-8">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Verification View -->
+                <div id="clientVerificationView" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div class="p-6 border-b border-gray-100">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-800">Client Verification Requests</h3>
+                                    <p class="text-sm text-gray-500 mt-1">Review and approve client verification requests</p>
+                                </div>
+                                <span id="clientVerificationCount" class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium">0 pending</span>
+                            </div>
+                        </div>
+                        <div id="clientVerificationList" class="p-6">
+                            <div class="flex items-center justify-center py-8">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Job Approval View -->
+                <div id="jobApprovalView" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div class="p-6 border-b border-gray-100">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-800">Job Approval Queue</h3>
+                                    <p class="text-sm text-gray-500 mt-1">Review and approve job postings before they go live</p>
+                                </div>
+                                <span id="jobApprovalCount" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">0 pending</span>
+                            </div>
+                        </div>
+                        <div id="jobApprovalList" class="p-6">
+                            <div class="flex items-center justify-center py-8">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Badge Request View -->
+                <div id="badgeRequestView" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div class="p-6 border-b border-gray-100">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-800">Badge Requests</h3>
+                                    <p class="text-sm text-gray-500 mt-1">Award special badges to deserving users</p>
+                                </div>
+                                <span id="badgeRequestCount" class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">0 pending</span>
+                            </div>
+                        </div>
+                        <div id="badgeRequestList" class="p-6">
+                            <div class="flex items-center justify-center py-8">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings View -->
+                <div id="settingsView" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-6">Admin Settings</h3>
+                        <div class="space-y-6">
+                            <div class="border-b border-gray-100 pb-6">
+                                <h4 class="font-medium text-gray-700 mb-4">Platform Settings</h4>
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-800">Auto-approve verified clients</p>
+                                            <p class="text-sm text-gray-500">Automatically approve clients with verified company emails</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-800">Email notifications</p>
+                                            <p class="text-sm text-gray-500">Receive email alerts for new pending requests</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" checked class="sr-only peer">
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-gray-700 mb-4">Admin Information</h4>
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <p class="text-gray-500">Admin Email</p>
+                                            <p id="adminEmail" class="font-medium text-gray-800">-</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500">Last Login</p>
+                                            <p id="lastLogin" class="font-medium text-gray-800">-</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Requests View (Legacy Support) -->
+                <div id="clientRequestsView" class="hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">All Client Requests</h3>
+                        <div id="clientRequestsList">
+                            <div class="flex items-center justify-center py-8">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg hidden z-50 flex items-center gap-3">
+        <i id="toastIcon" class="fas fa-check-circle"></i>
+        <span id="toastMessage">This is a notification</span>
+        <button onclick="hideToast()" class="ml-2 text-current opacity-70 hover:opacity-100">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-backdrop absolute inset-0"></div>
+        <div class="relative flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
+                <h3 id="confirmTitle" class="text-lg font-semibold text-gray-800 mb-2">Confirm Action</h3>
+                <p id="confirmMessage" class="text-gray-600 mb-6">Are you sure you want to proceed?</p>
+                <div class="flex justify-end gap-3">
+                    <button onclick="closeConfirmModal()" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                    <button id="confirmBtn" class="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    
+    <!-- Main JavaScript -->
+    <script src="admin.js"></script>
+</body>
+</html>
